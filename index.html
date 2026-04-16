@@ -11,8 +11,10 @@
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-        // 修正 Chrome PDF Worker 載入路徑
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        // 設定 PDF Worker
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
     </script>
     <style>
         .perspective-1000 { perspective: 1000px; }
@@ -41,11 +43,11 @@
             <h2 class="text-xl font-semibold mb-2">匯入 PDF 建立學習卡</h2>
             <p class="text-gray-500 mb-6 text-sm">請上傳包含英文句子的 PDF 檔案，系統將自動擷取並翻譯成繁體中文。</p>
             
-            <!-- API 金鑰輸入框 -->
+            <!-- API KEY 輸入欄位 -->
             <div class="mb-6 text-left">
-                <label for="api-key-input" class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Gemini API Key</label>
+                <label for="api-key-input" class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Gemini API Key (在 Canvas 中可留空)</label>
                 <div class="relative">
-                    <input type="password" id="api-key-input" placeholder="在此貼上您的 API 金鑰" 
+                    <input type="password" id="api-key-input" placeholder="在 Canvas 環境請留空；外部執行請貼上金鑰" 
                            class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-all">
                     <i class="fas fa-key absolute right-3 top-3 text-gray-300"></i>
                 </div>
@@ -176,9 +178,8 @@
     <script>
         let originalCards = [], queue = [], totalInitial = 0, isFlipped = false, stats = { again: 0, random: 0, review: 0, pass: 0 };
         
-        // 從 LocalStorage 載入金鑰（如果有的話）
         const API_KEY_STORAGE_KEY = 'gemini_api_key_v1';
-        let apiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || ""; 
+        let currentApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || ""; 
 
         const ui = {
             upload: document.getElementById('upload-screen'),
@@ -189,16 +190,20 @@
             loadingText: document.getElementById('loading-text'),
             apiKeyInput: document.getElementById('api-key-input'),
             showLoading: (msg) => {
-                [ui.upload, ui.flashcard, ui.finish].forEach(s => s.classList.add('hidden'));
-                ui.loading.classList.remove('hidden'); ui.loading.classList.add('flex');
+                [ui.upload, ui.flashcard, ui.finish, ui.loading].forEach(s => s.classList.add('hidden'));
+                ui.loading.classList.remove('hidden'); 
+                ui.loading.classList.add('flex');
                 if(msg) ui.loadingText.textContent = msg;
             },
             showFlashcards: () => {
-                ui.loading.classList.add('hidden'); ui.loading.classList.remove('flex');
-                ui.flashcard.classList.remove('hidden'); renderCard();
+                ui.loading.classList.add('hidden'); 
+                ui.loading.classList.remove('flex');
+                ui.flashcard.classList.remove('hidden'); 
+                renderCard();
             },
             showFinish: () => {
-                ui.flashcard.classList.add('hidden'); ui.finish.classList.remove('hidden');
+                ui.flashcard.classList.add('hidden'); 
+                ui.finish.classList.remove('hidden');
                 document.getElementById('final-stats').innerHTML = `
                     <div class="flex justify-between"><span>重來:</span> <b>${stats.again}</b></div>
                     <div class="flex justify-between"><span>隨機:</span> <b>${stats.random}</b></div>
@@ -207,7 +212,13 @@
                 `;
                 saveProgress();
             },
-            showError: (msg) => { alert(msg); ui.loading.classList.add('hidden'); ui.loading.classList.remove('flex'); ui.upload.classList.remove('hidden'); }
+            showError: (msg) => { 
+                console.error(msg);
+                alert(msg); 
+                ui.loading.classList.add('hidden'); 
+                ui.loading.classList.remove('flex'); 
+                ui.upload.classList.remove('hidden'); 
+            }
         };
 
         const STORAGE_KEY = 'ai_coach_final_v3';
@@ -218,7 +229,10 @@
             try {
                 const data = JSON.parse(saved);
                 if (data.originalCards?.length > 0) {
-                    originalCards = data.originalCards; queue = data.queue; totalInitial = data.totalInitial; stats = data.stats || { again: 0, random: 0, review: 0, pass: 0 };
+                    originalCards = data.originalCards; 
+                    queue = data.queue; 
+                    totalInitial = data.totalInitial; 
+                    stats = data.stats || { again: 0, random: 0, review: 0, pass: 0 };
                     if (queue.length > 0) { ui.showFlashcards(); return true; }
                     else { ui.showFinish(); return true; }
                 }
@@ -227,8 +241,7 @@
         }
 
         window.onload = () => { 
-            // 初始化 API Key 輸入框
-            if (ui.apiKeyInput) ui.apiKeyInput.value = apiKey;
+            if (ui.apiKeyInput) ui.apiKeyInput.value = currentApiKey;
             if (!loadProgress()) ui.upload.classList.remove('hidden'); 
         };
         
@@ -236,52 +249,84 @@
         function clearProgressAndReload() { localStorage.removeItem(STORAGE_KEY); location.reload(); }
 
         async function handleFileUpload(event) {
-            // 每次匯入前先更新並儲存金鑰
-            apiKey = ui.apiKeyInput.value.trim();
-            if (!apiKey) {
-                alert("請先輸入您的 Gemini API 金鑰！");
+            // 讀取金鑰，如果為空則交由環境(Canvas)自動注入
+            currentApiKey = ui.apiKeyInput.value.trim();
+            localStorage.setItem(API_KEY_STORAGE_KEY, currentApiKey);
+
+            const file = event.target.files[0];
+            if (!file) return;
+            if (file.type !== "application/pdf") {
+                alert("請上傳 PDF 格式的文件。");
                 event.target.value = '';
                 return;
             }
-            localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
-
-            const file = event.target.files[0];
-            if (!file || file.type !== "application/pdf") return;
-            ui.showLoading("正在解析 PDF...");
+            
+            ui.showLoading("正在解析 PDF 內容...");
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const sentences = await extractSentencesFromPDF(arrayBuffer);
-                if (!sentences || sentences.length === 0) { ui.showError("找不到可識別的英文句子！"); return; }
+                if (!sentences || sentences.length === 0) { 
+                    ui.showError("無法從 PDF 提取有效的英文句子。"); 
+                    return; 
+                }
+                
                 const target = sentences.slice(0, 30);
-                ui.showLoading("正在翻譯內容...");
+                ui.showLoading("正在呼叫 AI 翻譯並生成卡片...");
                 const translations = await translateSentences(target);
+                
                 originalCards = target.map((en, i) => ({ en, zh: translations[i] || "翻譯失敗" }));
                 startSession(originalCards);
-            } catch (error) { ui.showError("失敗：" + error.message); }
+            } catch (error) { 
+                ui.showError("錯誤：" + error.message); 
+            }
             event.target.value = '';
         }
 
         async function extractSentencesFromPDF(buf) {
-            const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-            let text = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                text += content.items.map(item => item.str).join(" ") + " ";
+            if (typeof pdfjsLib === 'undefined') {
+                throw new Error("PDF 庫尚未載入，請稍候再試。");
             }
-            return text.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 10 && /[a-zA-Z]/.test(s));
+            try {
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                let fullText = "";
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    fullText += content.items.map(item => item.str).join(" ") + " ";
+                }
+                return fullText
+                    .split(/(?<=[.?!])\s+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 10 && /[a-zA-Z]/.test(s));
+            } catch (e) {
+                throw new Error("PDF 解析失敗：" + e.message);
+            }
         }
 
         async function translateSentences(sentences) {
-            // 使用穩定版本 gemini-1.5-flash
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // 根據是否輸入金鑰，自動切換為對應支援的模型
+            // 如果輸入了自訂金鑰（外部環境），則使用公開穩定的 gemini-1.5-flash 以防 404
+            // 如果金鑰留空（在 Canvas 環境內），則使用預覽專屬模型 gemini-2.5-flash-preview-09-2025
+            const modelId = currentApiKey !== "" ? "gemini-1.5-flash" : "gemini-2.5-flash-preview-09-2025";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${currentApiKey}`;
+            
             const payload = {
-                contents: [{ parts: [{ text: JSON.stringify(sentences) }] }],
-                systemInstruction: { parts: [{ text: "You are a professional translator. Translate the given English sentence array into a Traditional Chinese (zh-TW) string array. Output MUST be a valid JSON array of strings ONLY. No preamble, no markdown formatting." }] },
-                generationConfig: { responseMimeType: "application/json" }
+                contents: [{ 
+                    parts: [{ 
+                        text: `Translate the following English sentences into Traditional Chinese (zh-TW). Return ONLY a JSON string array of translations. 
+                        Example output: ["翻譯1", "翻譯2"]
+                        Input: ${JSON.stringify(sentences)}` 
+                    }] 
+                }],
+                generationConfig: { 
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
             };
 
             const maxRetries = 5;
+            let backoffDelay = 1000;
+
             for (let i = 0; i < maxRetries; i++) {
                 try {
                     const res = await fetch(url, { 
@@ -291,94 +336,135 @@
                     });
 
                     if (!res.ok) {
-                        if (i === maxRetries - 1) throw new Error(`HTTP 錯誤: ${res.status}`);
-                        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
-                        continue;
+                        const errData = await res.json().catch(() => ({}));
+                        if (res.status === 404) {
+                            throw new Error(`API 端點未找到 (404)。模型 ${modelId} 無效或不支援。`);
+                        }
+                        if (res.status === 403 || res.status === 400) {
+                            throw new Error("API 金鑰無效或權限不足。請確認金鑰是否正確填寫。");
+                        }
+                        throw new Error(errData.error?.message || `API 伺服器錯誤 (代碼: ${res.status})`);
                     }
 
                     const data = await res.json();
-                    if (!data.candidates || data.candidates.length === 0) throw new Error("AI 未能產生成果");
+                    let textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!textContent) throw new Error("AI 未回傳任何文字內容。");
 
-                    let textContent = data.candidates[0].content.parts[0].text;
-                    textContent = textContent.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
                     const parsed = JSON.parse(textContent);
                     if (Array.isArray(parsed)) return parsed;
-                    throw new Error("回傳內容格式錯誤");
+                    throw new Error("AI 回傳的 JSON 格式不正確。");
 
                 } catch (e) {
-                    if (i === maxRetries - 1) throw new Error("網路請求失敗，請檢查 API 金鑰或網路。");
-                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, backoffDelay));
+                    backoffDelay *= 2;
                 }
             }
         }
 
-        function startSession(cards) { queue = [...cards]; totalInitial = queue.length; stats = { again: 0, random: 0, review: 0, pass: 0 }; saveProgress(); ui.showFlashcards(); }
+        function startSession(cards) { 
+            queue = [...cards]; 
+            totalInitial = queue.length; 
+            stats = { again: 0, random: 0, review: 0, pass: 0 }; 
+            saveProgress(); 
+            ui.showFlashcards(); 
+        }
+
         function restartSession() { startSession(originalCards); }
+
         function renderCard() {
             if (!queue || queue.length === 0) { ui.showFinish(); return; }
             const cur = queue[0];
             document.getElementById('front-text').textContent = cur.en;
             document.getElementById('back-en-text').textContent = cur.en;
             document.getElementById('back-zh-text').textContent = cur.zh;
-            
-            clearFeedback(); // 每次顯示新卡片時清除舊評分
-
+            document.getElementById('feedback-panel').classList.add('hidden');
             document.getElementById('progress-text').textContent = `剩餘: ${queue.length} / ${totalInitial}`;
             document.getElementById('stat-again').textContent = stats.again;
             document.getElementById('stat-random').textContent = stats.random;
             document.getElementById('stat-review').textContent = stats.review;
             document.getElementById('stat-pass').textContent = stats.pass;
             document.getElementById('progress-bar').style.width = `${((totalInitial - queue.length) / totalInitial) * 100}%`;
-            isFlipped = false; updateCardFlipStyle(); speak(cur.en);
-        }
-
-        function clearFeedback() {
-            document.getElementById('feedback-panel').classList.add('hidden');
-            document.getElementById('score-display').textContent = "";
-            document.getElementById('visual-compare').innerHTML = "";
-            document.getElementById('comment-box').innerHTML = "";
+            isFlipped = false; 
+            updateCardFlipStyle(); 
+            speak(cur.en);
         }
 
         function flipCard() { 
             isFlipped = !isFlipped; 
-            updateCardFlipStyle();
-            clearFeedback(); // 點擊翻面時清除評分內容
+            updateCardFlipStyle(); 
         }
 
-        function updateCardFlipStyle() { const inner = document.getElementById('card-inner'); if (inner) isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); }
+        function updateCardFlipStyle() { 
+            const inner = document.getElementById('card-inner'); 
+            if (inner) isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); 
+        }
+
         function srsAction(type, event) {
             if (event) event.stopPropagation();
             if (!queue.length) return;
-            const current = queue.shift(); stats[type]++;
+            const current = queue.shift(); 
+            stats[type]++;
             if (type === 'again') queue.splice(1, 0, current);
             else if (type === 'random') queue.splice(Math.floor(queue.length / 2), 0, current);
             else if (type === 'review') queue.push(current);
-            saveProgress(); renderCard();
+            saveProgress(); 
+            renderCard();
         }
 
-        function speak(text) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = 0.9; window.speechSynthesis.speak(u); }
-        function readCurrentSentence(event) { if(event) event.stopPropagation(); if (queue.length > 0) speak(queue[0].en); }
+        function speak(text) { 
+            window.speechSynthesis.cancel(); 
+            const u = new SpeechSynthesisUtterance(text); 
+            u.lang = 'en-US'; 
+            u.rate = 0.9; 
+            window.speechSynthesis.speak(u); 
+        }
+
+        function readCurrentSentence(event) { 
+            if(event) event.stopPropagation(); 
+            if (queue.length > 0) speak(queue[0].en); 
+        }
 
         document.addEventListener('keydown', (e) => {
             if (!ui.flashcard.offsetParent) return;
-            if (!ui.infoModal.classList.contains('hidden')) { if(e.key === 'Escape' || e.key === ' ') toggleInfoModal(); return; }
-            if (e.key === ' ') { e.preventDefault(); flipCard(); }
+            if (!ui.infoModal.classList.contains('hidden')) { 
+                if(e.key === 'Escape' || e.key === ' ') toggleInfoModal(); 
+                return; 
+            }
+            if (e.key === ' ') { 
+                e.preventDefault(); 
+                flipCard(); 
+            }
             else if (isFlipped) {
-                if (e.key === '1') srsAction('again'); else if (e.key === '2') srsAction('random');
-                else if (e.key === '3') srsAction('review'); else if (e.key === '4') srsAction('pass');
+                if (e.key === '1') srsAction('again'); 
+                else if (e.key === '2') srsAction('random');
+                else if (e.key === '3') srsAction('review'); 
+                else if (e.key === '4') srsAction('pass');
             }
         });
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null, isRecording = false;
         if (SpeechRec) {
-            recognition = new SpeechRec(); recognition.lang = 'en-US'; recognition.continuous = false;
-            recognition.onstart = () => { isRecording = true; document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); };
+            recognition = new SpeechRec(); 
+            recognition.lang = 'en-US'; 
+            recognition.continuous = false;
+            recognition.onstart = () => { 
+                isRecording = true; 
+                document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); 
+            };
             recognition.onresult = (e) => { handleScore(e.results[0][0].transcript); };
-            recognition.onend = () => { isRecording = false; document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); };
+            recognition.onend = () => { 
+                isRecording = false; 
+                document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); 
+            };
         }
 
-        function toggleRecording(event) { if(event) event.stopPropagation(); if(!recognition) return; isRecording ? recognition.stop() : (clearFeedback(), recognition.start()); }
+        function toggleRecording(event) { 
+            if(event) event.stopPropagation(); 
+            if(!recognition) return; 
+            isRecording ? recognition.stop() : (document.getElementById('feedback-panel').classList.add('hidden'), recognition.start()); 
+        }
 
         function getStringDistance(a, b) {
             const m = Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
