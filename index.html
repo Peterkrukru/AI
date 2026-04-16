@@ -249,7 +249,6 @@
         function clearProgressAndReload() { localStorage.removeItem(STORAGE_KEY); location.reload(); }
 
         async function handleFileUpload(event) {
-            // 讀取金鑰，如果為空則交由環境(Canvas)自動注入
             currentApiKey = ui.apiKeyInput.value.trim();
             localStorage.setItem(API_KEY_STORAGE_KEY, currentApiKey);
 
@@ -304,9 +303,6 @@
         }
 
         async function translateSentences(sentences) {
-            // 根據是否輸入金鑰，自動切換為對應支援的模型
-            // 如果輸入了自訂金鑰（外部環境），則使用公開穩定的 gemini-1.5-flash 以防 404
-            // 如果金鑰留空（在 Canvas 環境內），則使用預覽專屬模型 gemini-2.5-flash-preview-09-2025
             const modelId = currentApiKey !== "" ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${currentApiKey}`;
             
@@ -378,7 +374,10 @@
             document.getElementById('front-text').textContent = cur.en;
             document.getElementById('back-en-text').textContent = cur.en;
             document.getElementById('back-zh-text').textContent = cur.zh;
+            
+            // 每次渲染新卡片時，確保回饋面板是隱藏的
             document.getElementById('feedback-panel').classList.add('hidden');
+            
             document.getElementById('progress-text').textContent = `剩餘: ${queue.length} / ${totalInitial}`;
             document.getElementById('stat-again').textContent = stats.again;
             document.getElementById('stat-random').textContent = stats.random;
@@ -392,6 +391,15 @@
 
         function flipCard() { 
             isFlipped = !isFlipped; 
+            
+            // 當點擊卡片翻面時，隱藏並清除語音辨識內容
+            const feedbackPanel = document.getElementById('feedback-panel');
+            feedbackPanel.classList.add('hidden');
+            document.getElementById('score-display').textContent = "";
+            document.getElementById('visual-compare').innerHTML = "";
+            document.getElementById('comment-box').textContent = "";
+            document.getElementById('comment-box').className = "text-sm font-bold flex items-center justify-center gap-2 py-2 px-4 rounded-full shadow-sm";
+            
             updateCardFlipStyle(); 
         }
 
@@ -453,7 +461,14 @@
                 isRecording = true; 
                 document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); 
             };
-            recognition.onresult = (e) => { handleScore(e.results[0][0].transcript); };
+            recognition.onresult = (e) => { 
+                // 獲取辨識結果
+                const transcript = e.results[0][0].transcript;
+                // 加入 2 秒延遲後再顯示結果與評分
+                setTimeout(() => {
+                    handleScore(transcript); 
+                }, 2000);
+            };
             recognition.onend = () => { 
                 isRecording = false; 
                 document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); 
