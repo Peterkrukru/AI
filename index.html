@@ -36,7 +36,7 @@
     <main class="flex-grow flex items-center justify-center p-4 relative w-full max-w-4xl mx-auto">
         
         <!-- 首頁：匯入 PDF 介面 -->
-        <div id="upload-screen" class="bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
+        <div id="upload-screen" class="hidden bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
             <div class="mb-6 text-indigo-500">
                 <i class="fas fa-file-pdf text-6xl"></i>
             </div>
@@ -221,32 +221,53 @@
             }
         };
 
-        const STORAGE_KEY = 'ai_coach_final_v3';
-        function saveProgress() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ originalCards, queue, totalInitial, stats, timestamp: Date.now() })); }
+        const PROGRESS_STORAGE_KEY = 'ai_flashcard_progress_v1';
+
+        function saveProgress() { 
+            const data = {
+                originalCards,
+                queue,
+                totalInitial,
+                stats,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(data)); 
+        }
+
         function loadProgress() {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = localStorage.getItem(PROGRESS_STORAGE_KEY);
             if (!saved) return false;
             try {
                 const data = JSON.parse(saved);
-                if (data.originalCards?.length > 0) {
+                if (data.originalCards && data.originalCards.length > 0) {
                     originalCards = data.originalCards; 
                     queue = data.queue; 
                     totalInitial = data.totalInitial; 
                     stats = data.stats || { again: 0, random: 0, review: 0, pass: 0 };
-                    if (queue.length > 0) { ui.showFlashcards(); return true; }
-                    else { ui.showFinish(); return true; }
+                    
+                    if (queue.length > 0) { 
+                        ui.showFlashcards(); 
+                    } else { 
+                        ui.showFinish(); 
+                    }
+                    return true;
                 }
-            } catch (e) { localStorage.removeItem(STORAGE_KEY); }
+            } catch (e) { 
+                console.error("載入進度失敗", e);
+                localStorage.removeItem(PROGRESS_STORAGE_KEY); 
+            }
             return false;
         }
 
         window.onload = () => { 
             if (ui.apiKeyInput) ui.apiKeyInput.value = currentApiKey;
-            if (!loadProgress()) ui.upload.classList.remove('hidden'); 
+            if (!loadProgress()) {
+                ui.upload.classList.remove('hidden'); 
+            }
         };
         
         function toggleInfoModal() { ui.infoModal.classList.toggle('hidden'); }
-        function clearProgressAndReload() { localStorage.removeItem(STORAGE_KEY); location.reload(); }
+        function clearProgressAndReload() { localStorage.removeItem(PROGRESS_STORAGE_KEY); location.reload(); }
 
         async function handleFileUpload(event) {
             currentApiKey = ui.apiKeyInput.value.trim();
@@ -273,7 +294,10 @@
                 ui.showLoading("正在呼叫 AI 翻譯並生成卡片...");
                 const translations = await translateSentences(target);
                 
-                originalCards = target.map((en, i) => ({ en, zh: translations[i] || "翻譯失敗" }));
+                originalCards = target.map((en, i) => ({ 
+                    en, 
+                    zh: translations[i] || "翻譯失敗" 
+                }));
                 startSession(originalCards);
             } catch (error) { 
                 ui.showError("錯誤：" + error.message); 
@@ -375,7 +399,6 @@
             document.getElementById('back-en-text').textContent = cur.en;
             document.getElementById('back-zh-text').textContent = cur.zh;
             
-            // 每次渲染新卡片時，確保回饋面板是隱藏的
             document.getElementById('feedback-panel').classList.add('hidden');
             
             document.getElementById('progress-text').textContent = `剩餘: ${queue.length} / ${totalInitial}`;
@@ -389,10 +412,16 @@
             speak(cur.en);
         }
 
+        function updateCardFlipStyle() { 
+            const inner = document.getElementById('card-inner'); 
+            if (inner) {
+                isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); 
+            }
+        }
+
         function flipCard() { 
             isFlipped = !isFlipped; 
             
-            // 當點擊卡片翻面時，隱藏並清除語音辨識內容
             const feedbackPanel = document.getElementById('feedback-panel');
             feedbackPanel.classList.add('hidden');
             document.getElementById('score-display').textContent = "";
@@ -403,11 +432,6 @@
             updateCardFlipStyle(); 
         }
 
-        function updateCardFlipStyle() { 
-            const inner = document.getElementById('card-inner'); 
-            if (inner) isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); 
-        }
-
         function srsAction(type, event) {
             if (event) event.stopPropagation();
             if (!queue.length) return;
@@ -416,6 +440,7 @@
             if (type === 'again') queue.splice(1, 0, current);
             else if (type === 'random') queue.splice(Math.floor(queue.length / 2), 0, current);
             else if (type === 'review') queue.push(current);
+            
             saveProgress(); 
             renderCard();
         }
@@ -462,9 +487,7 @@
                 document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); 
             };
             recognition.onresult = (e) => { 
-                // 獲取辨識結果
                 const transcript = e.results[0][0].transcript;
-                // 加入 2 秒延遲後再顯示結果與評分
                 setTimeout(() => {
                     handleScore(transcript); 
                 }, 2000);
