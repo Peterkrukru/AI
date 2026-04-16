@@ -307,7 +307,7 @@
             // 根據是否輸入金鑰，自動切換為對應支援的模型
             // 如果輸入了自訂金鑰（外部環境），則使用公開穩定的 gemini-1.5-flash 以防 404
             // 如果金鑰留空（在 Canvas 環境內），則使用預覽專屬模型 gemini-2.5-flash-preview-09-2025
-            const modelId = currentApiKey !== "" ? "gemini-1.5-flash-latest" : "gemini-2.5-flash-preview-09-2025";
+            const modelId = currentApiKey !== "" ? "gemini-3.1-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${currentApiKey}`;
             
             const payload = {
