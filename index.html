@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>英文句子學習卡 App (SRS)</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,44 +22,39 @@
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
         .transition-transform { transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); }
-        .copyright-tag { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #9ca3af; font-weight: bold; z-index: 100; }
-        /* 確保內容在小螢幕也能適配 */
-        @media (max-height: 700px) {
-            .card-container { height: 65vh !important; }
-            #front-text { font-size: 1.25rem !important; }
-            #back-en-text { font-size: 1.125rem !important; }
-        }
+        .copyright-tag { position: fixed; bottom: 10px; right: 10px; font-size: 12px; color: #9ca3af; font-weight: bold; z-index: 100; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen text-gray-800 font-sans flex flex-col relative overflow-hidden">
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans flex flex-col relative">
 
     <div class="copyright-tag">@Peter Huang 2026/4/16</div>
 
-    <header class="bg-indigo-600 text-white p-3 shadow-md text-center shrink-0">
-        <h1 class="text-xl font-bold"><i class="fas fa-layer-group mr-2"></i>英文句子學習卡</h1>
+    <header class="bg-indigo-600 text-white p-4 shadow-md text-center">
+        <h1 class="text-2xl font-bold"><i class="fas fa-layer-group mr-2"></i>英文句子學習卡</h1>
     </header>
 
-    <main class="flex-grow flex items-center justify-center p-3 relative w-full max-w-4xl mx-auto overflow-y-auto">
+    <main class="flex-grow flex items-center justify-center p-4 relative w-full max-w-4xl mx-auto">
         
         <!-- 首頁：匯入 PDF 介面 -->
-        <div id="upload-screen" class="hidden bg-white p-6 md:p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
-            <div class="mb-4 text-indigo-500">
-                <i class="fas fa-file-pdf text-5xl"></i>
+        <div id="upload-screen" class="bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
+            <div class="mb-6 text-indigo-500">
+                <i class="fas fa-file-pdf text-6xl"></i>
             </div>
-            <h2 class="text-lg font-semibold mb-2">匯入 PDF 建立學習卡</h2>
-            <p class="text-gray-500 mb-6 text-xs">請上傳包含英文句子的 PDF 檔案。</p>
+            <h2 class="text-xl font-semibold mb-2">匯入 PDF 建立學習卡</h2>
+            <p class="text-gray-500 mb-6 text-sm">請上傳包含英文句子的 PDF 檔案，系統將自動擷取並翻譯成繁體中文。</p>
             
             <!-- API KEY 輸入欄位 -->
             <div class="mb-6 text-left">
-                <label for="api-key-input" class="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Gemini API Key</label>
+                <label for="api-key-input" class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Gemini API Key (在 Canvas 中可留空)</label>
                 <div class="relative">
-                    <input type="password" id="api-key-input" placeholder="留空或貼上金鑰" 
-                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-                    <i class="fas fa-key absolute right-3 top-2.5 text-gray-300"></i>
+                    <input type="password" id="api-key-input" placeholder="在 Canvas 環境請留空；外部執行請貼上金鑰" 
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-all">
+                    <i class="fas fa-key absolute right-3 top-3 text-gray-300"></i>
                 </div>
+                <p class="text-[10px] text-gray-400 mt-1">金鑰僅儲存於您的瀏覽器中。</p>
             </div>
 
-            <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition-colors inline-block w-full text-center shadow-md">
+            <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 inline-block w-full text-center shadow-md">
                 <i class="fas fa-upload mr-2"></i> 選擇 PDF 檔案
                 <input type="file" id="pdf-upload" accept="application/pdf" class="hidden" onchange="handleFileUpload(event)">
             </label>
@@ -68,84 +63,87 @@
         <!-- 載入中介面 -->
         <div id="loading-screen" class="hidden flex-col items-center justify-center space-y-4">
             <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-600"></i>
-            <p id="loading-text" class="text-base font-medium text-gray-600">正在處理中...</p>
+            <p id="loading-text" class="text-lg font-medium text-gray-600">正在處理中...</p>
         </div>
 
         <!-- 學習卡片介面 -->
-        <div id="flashcard-screen" class="hidden w-full max-w-2xl flex flex-col items-center h-full">
+        <div id="flashcard-screen" class="hidden w-full max-w-2xl flex flex-col items-center">
             
-            <div class="w-full mb-3">
-                <div class="flex items-center justify-between text-[10px] text-gray-500 mb-2 font-bold bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-3">
-                        <button onclick="toggleInfoModal()" class="flex items-center gap-1 hover:text-indigo-600">
-                            <i class="fas fa-info-circle"></i> 說明
+            <div class="w-full mb-4">
+                <div class="flex items-center justify-between text-[11px] text-gray-500 mb-2 font-bold tracking-tight bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <button onclick="toggleInfoModal()" class="flex items-center gap-1 hover:text-indigo-600 transition-colors">
+                            <i class="fas fa-info-circle text-sm"></i> 說明
                         </button>
-                        <button onclick="clearProgressAndReload()" class="flex items-center gap-1 hover:text-indigo-600 border-l pl-3 border-gray-200">
-                            <i class="fas fa-file-upload"></i> 上傳
+                        <button onclick="clearProgressAndReload()" class="flex items-center gap-1 hover:text-indigo-600 transition-colors border-l pl-4 border-gray-200">
+                            <i class="fas fa-file-upload text-sm"></i> 上傳PDF
                         </button>
-                        <div id="stats-display" class="hidden sm:flex gap-2 border-l pl-3 border-gray-200">
-                            <span class="text-red-500">重來:<span id="stat-again">0</span></span>
-                            <span class="text-blue-500">複習:<span id="stat-review">0</span></span>
-                            <span class="text-green-500">通過:<span id="stat-pass">0</span></span>
+                        <div id="stats-display" class="flex gap-3 border-l pl-4 border-gray-200">
+                            <span class="text-red-500">重來: <span id="stat-again">0</span></span>
+                            <span class="text-orange-500">隨機: <span id="stat-random">0</span></span>
+                            <span class="text-blue-500">複習: <span id="stat-review">0</span></span>
+                            <span class="text-green-500">通過: <span id="stat-pass">0</span></span>
                         </div>
                     </div>
-                    <div><span id="progress-text" class="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-mono">剩餘: 0/0</span></div>
+                    <div><span id="progress-text" class="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-mono">剩餘: 0 / 0</span></div>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-1">
                     <div id="progress-bar" class="bg-indigo-600 h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
                 </div>
             </div>
 
-            <div class="w-full card-container h-[60vh] min-h-[380px] max-h-[500px] perspective-1000 cursor-pointer" onclick="flipCard()">
+            <div class="w-full h-[480px] perspective-1000 cursor-pointer" onclick="flipCard()">
                 <div id="card-inner" class="relative w-full h-full text-center transition-transform transform-style-3d shadow-xl rounded-2xl">
                     
                     <!-- 卡片正面 -->
-                    <div class="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-50 rounded-2xl flex items-center justify-center p-6">
+                    <div class="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-100 rounded-2xl flex items-center justify-center p-6">
                         <div class="flex items-start justify-center w-full">
-                            <button onclick="readCurrentSentence(event)" class="text-indigo-400 hover:text-indigo-700 text-xl mr-2 mt-1 focus:outline-none shrink-0">
+                            <button onclick="readCurrentSentence(event)" class="text-indigo-400 hover:text-indigo-700 text-2xl mr-3 mt-1 focus:outline-none">
                                 <i class="fas fa-volume-up"></i>
                             </button>
-                            <h2 id="front-text" class="text-xl md:text-2xl font-bold text-gray-800 leading-tight text-left break-words"></h2>
+                            <h2 id="front-text" class="text-2xl md:text-3xl font-bold text-gray-800 leading-tight text-left"></h2>
                         </div>
-                        <div class="absolute bottom-4 text-gray-300 text-[9px] font-bold uppercase tracking-widest hidden sm:block">空白鍵或點擊翻面</div>
+                        <div class="absolute bottom-4 text-gray-300 text-[10px] font-bold uppercase tracking-widest">空白鍵翻面</div>
                     </div>
 
                     <!-- 卡片背面 -->
-                    <div class="absolute w-full h-full backface-hidden bg-indigo-50 border-2 border-indigo-100 rounded-2xl flex flex-col p-4 md:p-6 rotate-y-180 overflow-hidden text-left">
+                    <div class="absolute w-full h-full backface-hidden bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex flex-col p-6 rotate-y-180 overflow-hidden text-left">
                         <div class="flex flex-col h-full">
                             <div class="flex items-start w-full mb-2">
-                                <button onclick="readCurrentSentence(event)" class="text-indigo-500 hover:text-indigo-700 text-lg mr-2 mt-1 shrink-0 focus:outline-none">
+                                <button onclick="readCurrentSentence(event)" class="text-indigo-500 hover:text-indigo-700 text-xl mr-3 mt-1 shrink-0 focus:outline-none">
                                     <i class="fas fa-volume-up"></i>
                                 </button>
-                                <div class="flex items-start flex-wrap flex-grow overflow-hidden">
-                                    <p id="back-en-text" class="text-base md:text-lg font-semibold text-gray-700 leading-snug break-words"></p>
-                                    <button id="mic-btn" onclick="toggleRecording(event)" class="text-green-500 text-2xl ml-auto mt-0 shrink-0 transition-all active:scale-90 focus:outline-none">
+                                <div class="flex items-start flex-wrap flex-grow">
+                                    <p id="back-en-text" class="text-lg font-semibold text-gray-700 leading-snug"></p>
+                                    <button id="mic-btn" onclick="toggleRecording(event)" class="text-green-500 hover:text-green-600 text-3xl ml-4 mt-0 shrink-0 transition-all active:scale-90 focus:outline-none">
                                         <i class="fas fa-microphone"></i>
                                     </button>
                                 </div>
                             </div>
                             
                             <hr class="border-indigo-100 mb-2">
-                            <p id="back-zh-text" class="text-sm md:text-base text-gray-600 leading-tight mb-2 italic"></p>
+                            <p id="back-zh-text" class="text-base text-gray-600 leading-tight mb-3"></p>
                             
                             <!-- 評分面板 -->
-                            <div id="feedback-panel" class="hidden flex flex-col bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-white shadow-sm mb-3 shrink-0">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="text-indigo-600 text-[9px] font-black uppercase">語音辨識評分</span>
+                            <div id="feedback-panel" class="hidden flex flex-col bg-white/90 backdrop-blur-sm p-4 rounded-xl border border-white shadow-lg mb-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="bg-indigo-100 text-indigo-600 text-[10px] font-black px-2 py-0.5 rounded uppercase">語音辨識</span>
                                     <div class="flex items-center gap-1">
-                                        <span id="score-display" class="text-2xl font-black italic tracking-tighter"></span>
-                                        <span class="text-gray-400 text-[10px] font-bold">/ 10</span>
+                                        <span id="score-display" class="text-3xl font-black italic tracking-tighter"></span>
+                                        <span class="text-gray-400 text-xs font-bold">/ 10</span>
                                     </div>
                                 </div>
-                                <div id="visual-compare" class="text-xs flex flex-wrap gap-x-1 gap-y-1 leading-tight font-mono bg-white/50 p-2 rounded-lg min-h-[40px] mb-2 overflow-y-auto max-h-[60px]"></div>
-                                <div id="comment-box" class="text-[10px] font-bold py-1 px-3 rounded-full text-center"></div>
+                                
+                                <div id="visual-compare" class="text-base flex flex-wrap gap-x-1 gap-y-1.5 leading-tight font-bold font-mono bg-white p-3 rounded-lg border border-gray-100 min-h-[50px] mb-3"></div>
+                                
+                                <div id="comment-box" class="text-sm font-bold flex items-center justify-center gap-2 py-2 px-4 rounded-full shadow-sm"></div>
                             </div>
 
-                            <div class="mt-auto grid grid-cols-4 gap-1.5 shrink-0">
-                                <button onclick="srsAction('again', event)" class="bg-red-500 text-white py-3 rounded-xl font-bold text-[11px] shadow-sm">重來</button>
-                                <button onclick="srsAction('random', event)" class="bg-orange-500 text-white py-3 rounded-xl font-bold text-[11px] shadow-sm">隨機</button>
-                                <button onclick="srsAction('review', event)" class="bg-blue-500 text-white py-3 rounded-xl font-bold text-[11px] shadow-sm">複習</button>
-                                <button onclick="srsAction('pass', event)" class="bg-green-600 text-white py-3 rounded-xl font-bold text-[11px] shadow-sm">通過</button>
+                            <div class="mt-auto grid grid-cols-4 gap-2">
+                                <button onclick="srsAction('again', event)" class="bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">重來</button>
+                                <button onclick="srsAction('random', event)" class="bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">隨機</button>
+                                <button onclick="srsAction('review', event)" class="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">複習</button>
+                                <button onclick="srsAction('pass', event)" class="bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">通過</button>
                             </div>
                         </div>
                     </div>
@@ -154,33 +152,33 @@
         </div>
 
         <!-- 結算畫面 -->
-        <div id="finish-screen" class="hidden bg-white p-8 rounded-2xl shadow-lg text-center w-full max-w-md">
-            <div class="mb-4 text-green-500"><i class="fas fa-check-circle text-5xl"></i></div>
-            <h2 class="text-xl font-bold mb-4">完成練習！</h2>
-            <div id="final-stats" class="text-sm text-left bg-gray-50 p-4 rounded-xl mb-6 space-y-1"></div>
-            <button onclick="restartSession()" class="bg-indigo-600 text-white font-medium py-3 px-6 rounded-lg w-full">重新開始</button>
+        <div id="finish-screen" class="hidden bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
+            <div class="mb-6 text-green-500"><i class="fas fa-check-circle text-6xl"></i></div>
+            <h2 class="text-2xl font-bold mb-2">完成練習！</h2>
+            <div id="final-stats" class="text-left bg-gray-50 p-4 rounded-xl mb-6 space-y-2"></div>
+            <button onclick="restartSession()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg w-full">重新開始</button>
         </div>
 
         <!-- 說明彈窗 -->
-        <div id="info-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="toggleInfoModal()">
-            <div class="bg-white rounded-2xl p-6 max-w-xs w-full shadow-2xl" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold mb-4 border-b pb-2">操作說明</h3>
-                <ul class="space-y-3 text-xs">
-                    <li><span class="bg-gray-100 px-1.5 py-0.5 rounded font-mono font-bold mr-1">Space</span> 點擊卡片可翻轉</li>
-                    <li><span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-mono font-bold mr-1">1</span> 重來 (Again)</li>
-                    <li><span class="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-mono font-bold mr-1">2</span> 隨機 (Random)</li>
-                    <li><span class="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-mono font-bold mr-1">3</span> 複習 (Review)</li>
-                    <li><span class="bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-mono font-bold mr-1">4</span> 通過 (Pass)</li>
+        <div id="info-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onclick="toggleInfoModal()">
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onclick="event.stopPropagation()">
+                <h3 class="text-lg font-bold mb-4 border-b pb-2 flex items-center gap-2"><i class="fas fa-keyboard text-indigo-600"></i> 操作與快速鍵</h3>
+                <ul class="space-y-4 text-sm">
+                    <li><span class="bg-gray-100 px-2 py-1 rounded font-mono font-bold mr-2 text-indigo-600">Space</span> 翻轉卡片</li>
+                    <li class="flex items-start gap-3"><span class="bg-red-100 text-red-600 px-2 py-1 rounded font-mono font-bold">1</span><div><p class="font-bold">重來 (Again)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-orange-100 text-orange-600 px-2 py-1 rounded font-mono font-bold">2</span><div><p class="font-bold">隨機 (Random)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-blue-100 text-blue-600 px-2 py-1 rounded font-mono font-bold">3</span><div><p class="font-bold">複習 (Review)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-green-100 text-green-600 px-2 py-1 rounded font-mono font-bold">4</span><div><p class="font-bold">通過 (Pass)</p></div></li>
                 </ul>
-                <button onclick="toggleInfoModal()" class="mt-6 w-full py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-sm">關閉</button>
+                <button onclick="toggleInfoModal()" class="mt-6 w-full py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold">知道了</button>
             </div>
         </div>
     </main>
 
     <script>
         let originalCards = [], queue = [], totalInitial = 0, isFlipped = false, stats = { again: 0, random: 0, review: 0, pass: 0 };
+        
         const API_KEY_STORAGE_KEY = 'gemini_api_key_v1';
-        const PROGRESS_STORAGE_KEY = 'ai_flashcard_progress_v1';
         let currentApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || ""; 
 
         const ui = {
@@ -223,24 +221,22 @@
             }
         };
 
-        function saveProgress() { 
-            localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify({ originalCards, queue, totalInitial, stats, timestamp: Date.now() })); 
-        }
-
+        const STORAGE_KEY = 'ai_coach_final_v3';
+        function saveProgress() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ originalCards, queue, totalInitial, stats, timestamp: Date.now() })); }
         function loadProgress() {
-            const saved = localStorage.getItem(PROGRESS_STORAGE_KEY);
+            const saved = localStorage.getItem(STORAGE_KEY);
             if (!saved) return false;
             try {
                 const data = JSON.parse(saved);
-                if (data.originalCards?.length) {
+                if (data.originalCards?.length > 0) {
                     originalCards = data.originalCards; 
                     queue = data.queue; 
                     totalInitial = data.totalInitial; 
                     stats = data.stats || { again: 0, random: 0, review: 0, pass: 0 };
-                    queue.length > 0 ? ui.showFlashcards() : ui.showFinish();
-                    return true;
+                    if (queue.length > 0) { ui.showFlashcards(); return true; }
+                    else { ui.showFinish(); return true; }
                 }
-            } catch (e) { localStorage.removeItem(PROGRESS_STORAGE_KEY); }
+            } catch (e) { localStorage.removeItem(STORAGE_KEY); }
             return false;
         }
 
@@ -250,46 +246,116 @@
         };
         
         function toggleInfoModal() { ui.infoModal.classList.toggle('hidden'); }
-        function clearProgressAndReload() { localStorage.removeItem(PROGRESS_STORAGE_KEY); location.reload(); }
+        function clearProgressAndReload() { localStorage.removeItem(STORAGE_KEY); location.reload(); }
 
         async function handleFileUpload(event) {
             currentApiKey = ui.apiKeyInput.value.trim();
             localStorage.setItem(API_KEY_STORAGE_KEY, currentApiKey);
+
             const file = event.target.files[0];
-            if (!file || file.type !== "application/pdf") return;
-            ui.showLoading("解析 PDF 中...");
+            if (!file) return;
+            if (file.type !== "application/pdf") {
+                alert("請上傳 PDF 格式的文件。");
+                event.target.value = '';
+                return;
+            }
+            
+            ui.showLoading("正在解析 PDF 內容...");
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const sentences = await extractSentencesFromPDF(arrayBuffer);
-                if (!sentences?.length) throw new Error("提取不到英文句子。");
+                if (!sentences || sentences.length === 0) { 
+                    ui.showError("無法從 PDF 提取有效的英文句子。"); 
+                    return; 
+                }
+                
                 const target = sentences.slice(0, 30);
-                ui.showLoading("翻譯生成卡片中...");
+                ui.showLoading("正在呼叫 AI 翻譯並生成卡片...");
                 const translations = await translateSentences(target);
+                
                 originalCards = target.map((en, i) => ({ en, zh: translations[i] || "翻譯失敗" }));
                 startSession(originalCards);
-            } catch (error) { ui.showError(error.message); }
+            } catch (error) { 
+                ui.showError("錯誤：" + error.message); 
+            }
+            event.target.value = '';
         }
 
         async function extractSentencesFromPDF(buf) {
-            const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-            let fullText = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                fullText += (await page.getTextContent()).items.map(item => item.str).join(" ") + " ";
+            if (typeof pdfjsLib === 'undefined') {
+                throw new Error("PDF 庫尚未載入，請稍候再試。");
             }
-            return fullText.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 10 && /[a-zA-Z]/.test(s));
+            try {
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                let fullText = "";
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    fullText += content.items.map(item => item.str).join(" ") + " ";
+                }
+                return fullText
+                    .split(/(?<=[.?!])\s+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 10 && /[a-zA-Z]/.test(s));
+            } catch (e) {
+                throw new Error("PDF 解析失敗：" + e.message);
+            }
         }
 
         async function translateSentences(sentences) {
-            const modelId = currentApiKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
+            const modelId = currentApiKey !== "" ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${currentApiKey}`;
+            
             const payload = {
-                contents: [{ parts: [{ text: `Translate to Traditional Chinese (zh-TW), return JSON string array: ${JSON.stringify(sentences)}` }] }],
-                generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+                contents: [{ 
+                    parts: [{ 
+                        text: `Translate the following English sentences into Traditional Chinese (zh-TW). Return ONLY a JSON string array of translations. 
+                        Example output: ["翻譯1", "翻譯2"]
+                        Input: ${JSON.stringify(sentences)}` 
+                    }] 
+                }],
+                generationConfig: { 
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
             };
-            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const data = await res.json();
-            return JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
+
+            const maxRetries = 5;
+            let backoffDelay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const res = await fetch(url, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(payload) 
+                    });
+
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        if (res.status === 404) {
+                            throw new Error(`API 端點未找到 (404)。模型 ${modelId} 無效或不支援。`);
+                        }
+                        if (res.status === 403 || res.status === 400) {
+                            throw new Error("API 金鑰無效或權限不足。請確認金鑰是否正確填寫。");
+                        }
+                        throw new Error(errData.error?.message || `API 伺服器錯誤 (代碼: ${res.status})`);
+                    }
+
+                    const data = await res.json();
+                    let textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!textContent) throw new Error("AI 未回傳任何文字內容。");
+
+                    const parsed = JSON.parse(textContent);
+                    if (Array.isArray(parsed)) return parsed;
+                    throw new Error("AI 回傳的 JSON 格式不正確。");
+
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, backoffDelay));
+                    backoffDelay *= 2;
+                }
+            }
         }
 
         function startSession(cards) { 
@@ -303,14 +369,18 @@
         function restartSession() { startSession(originalCards); }
 
         function renderCard() {
-            if (!queue?.length) { ui.showFinish(); return; }
+            if (!queue || queue.length === 0) { ui.showFinish(); return; }
             const cur = queue[0];
             document.getElementById('front-text').textContent = cur.en;
             document.getElementById('back-en-text').textContent = cur.en;
             document.getElementById('back-zh-text').textContent = cur.zh;
+            
+            // 每次渲染新卡片時，確保回饋面板是隱藏的
             document.getElementById('feedback-panel').classList.add('hidden');
-            document.getElementById('progress-text').textContent = `剩餘: ${queue.length}/${totalInitial}`;
+            
+            document.getElementById('progress-text').textContent = `剩餘: ${queue.length} / ${totalInitial}`;
             document.getElementById('stat-again').textContent = stats.again;
+            document.getElementById('stat-random').textContent = stats.random;
             document.getElementById('stat-review').textContent = stats.review;
             document.getElementById('stat-pass').textContent = stats.pass;
             document.getElementById('progress-bar').style.width = `${((totalInitial - queue.length) / totalInitial) * 100}%`;
@@ -319,15 +389,23 @@
             speak(cur.en);
         }
 
+        function flipCard() { 
+            isFlipped = !isFlipped; 
+            
+            // 當點擊卡片翻面時，隱藏並清除語音辨識內容
+            const feedbackPanel = document.getElementById('feedback-panel');
+            feedbackPanel.classList.add('hidden');
+            document.getElementById('score-display').textContent = "";
+            document.getElementById('visual-compare').innerHTML = "";
+            document.getElementById('comment-box').textContent = "";
+            document.getElementById('comment-box').className = "text-sm font-bold flex items-center justify-center gap-2 py-2 px-4 rounded-full shadow-sm";
+            
+            updateCardFlipStyle(); 
+        }
+
         function updateCardFlipStyle() { 
             const inner = document.getElementById('card-inner'); 
             if (inner) isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); 
-        }
-
-        function flipCard() { 
-            isFlipped = !isFlipped; 
-            document.getElementById('feedback-panel').classList.add('hidden');
-            updateCardFlipStyle(); 
         }
 
         function srsAction(type, event) {
@@ -338,22 +416,33 @@
             if (type === 'again') queue.splice(1, 0, current);
             else if (type === 'random') queue.splice(Math.floor(queue.length / 2), 0, current);
             else if (type === 'review') queue.push(current);
-            saveProgress();
+            saveProgress(); 
             renderCard();
         }
 
         function speak(text) { 
             window.speechSynthesis.cancel(); 
             const u = new SpeechSynthesisUtterance(text); 
-            u.lang = 'en-US'; u.rate = 0.9; 
+            u.lang = 'en-US'; 
+            u.rate = 0.9; 
             window.speechSynthesis.speak(u); 
         }
 
-        function readCurrentSentence(event) { if(event) event.stopPropagation(); if (queue.length) speak(queue[0].en); }
+        function readCurrentSentence(event) { 
+            if(event) event.stopPropagation(); 
+            if (queue.length > 0) speak(queue[0].en); 
+        }
 
         document.addEventListener('keydown', (e) => {
             if (!ui.flashcard.offsetParent) return;
-            if (e.key === ' ') { e.preventDefault(); flipCard(); }
+            if (!ui.infoModal.classList.contains('hidden')) { 
+                if(e.key === 'Escape' || e.key === ' ') toggleInfoModal(); 
+                return; 
+            }
+            if (e.key === ' ') { 
+                e.preventDefault(); 
+                flipCard(); 
+            }
             else if (isFlipped) {
                 if (e.key === '1') srsAction('again'); 
                 else if (e.key === '2') srsAction('random');
@@ -367,9 +456,23 @@
         if (SpeechRec) {
             recognition = new SpeechRec(); 
             recognition.lang = 'en-US'; 
-            recognition.onstart = () => { isRecording = true; document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); };
-            recognition.onresult = (e) => { setTimeout(() => handleScore(e.results[0][0].transcript), 1500); };
-            recognition.onend = () => { isRecording = false; document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); };
+            recognition.continuous = false;
+            recognition.onstart = () => { 
+                isRecording = true; 
+                document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); 
+            };
+            recognition.onresult = (e) => { 
+                // 獲取辨識結果
+                const transcript = e.results[0][0].transcript;
+                // 加入 2 秒延遲後再顯示結果與評分
+                setTimeout(() => {
+                    handleScore(transcript); 
+                }, 2000);
+            };
+            recognition.onend = () => { 
+                isRecording = false; 
+                document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); 
+            };
         }
 
         function toggleRecording(event) { 
@@ -381,33 +484,57 @@
         function getStringDistance(a, b) {
             const m = Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
             for(let i=0;i<=a.length;i++) m[i][0]=i; for(let j=0;j<=b.length;j++) m[0][j]=j;
-            for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++) m[i][j]=Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+            for(let i=1;i<=a.length;i++){
+                for(let j=1;j<=b.length;j++){
+                    const c = a[i-1]===b[j-1]?0:1;
+                    m[i][j]=Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+c);
+                }
+            }
             return m[a.length][b.length];
         }
 
         function handleScore(transcript) {
             if (!queue.length) return;
+            const clean = (s) => s.toLowerCase().replace(/[^\w\s]/g,"").split(/\s+/).filter(x => x.length > 0);
             const originalWordsRaw = queue[0].en.replace(/[^\w\s]/g,"").split(/\s+/).filter(x => x.length > 0);
-            const userWords = transcript.toLowerCase().replace(/[^\w\s]/g,"").split(/\s+/).filter(x => x.length > 0);
-            let totalDeduction = 0, hasMajorError = false;
+            const originalWordsLower = originalWordsRaw.map(w => w.toLowerCase());
+            const userWords = clean(transcript);
+            const negativeWords = ['not', 'no', 'dont', 'doesnt', 'didnt', 'cant', 'cannot', 'wont', 'shouldnt', 'wouldnt', 'couldnt', 'isnt', 'arent', 'werent', 'wasnt', 'never'];
+            
+            let totalDeduction = 0, hasMajorError = false, hasMinorError = false;
 
             const visualHTML = originalWordsRaw.map((word, idx) => {
-                const wordLower = word.toLowerCase(), userWord = userWords[idx] || "";
+                const wordLower = word.toLowerCase();
+                const userWord = userWords[idx] || "";
                 if (wordLower === userWord) return `<span class="text-green-600">${word}</span>`;
-                const dist = getStringDistance(wordLower, userWord), ratio = dist / Math.max(wordLower.length, 1);
-                if (userWord && ratio <= 0.3) totalDeduction += 0.5; else { totalDeduction += 1; hasMajorError = true; }
-                return `<span class="text-red-500 underline decoration-dotted underline-offset-2">${word}</span>`;
+                else {
+                    const dist = getStringDistance(wordLower, userWord);
+                    const ratio = dist / Math.max(wordLower.length, 1);
+                    if (userWord && ratio <= 0.3) { totalDeduction += 0.5; hasMinorError = true; }
+                    else { totalDeduction += 1; hasMajorError = true; }
+                    return `<span class="text-red-500 underline decoration-dotted decoration-2 underline-offset-4">${word}</span>`;
+                }
             }).join(' ');
 
-            const finalScore = Math.max(0, Math.round(10 - (totalDeduction / originalWordsRaw.length) * 10));
+            const originalNegSet = new Set(originalWordsLower.filter(w => negativeWords.includes(w)));
+            const userNegSet = new Set(userWords.filter(w => negativeWords.includes(w)));
+            const semanticInversion = [...originalNegSet].some(w => !userNegSet.has(w)) || userWords.filter(w => negativeWords.includes(w)).some(w => !originalNegSet.has(w));
+
+            let scoreCalc = 10 - (totalDeduction / Math.max(originalWordsRaw.length, 1)) * 10;
+            if (semanticInversion) scoreCalc -= 3.5;
+            const finalScore = Math.max(0, Math.round(scoreCalc));
+
             const sDisplay = document.getElementById('score-display');
             sDisplay.textContent = finalScore;
-            sDisplay.className = `text-2xl font-black italic ${finalScore >= 9 ? 'text-green-600' : finalScore >= 6 ? 'text-orange-500' : 'text-red-600'}`;
+            sDisplay.className = `text-3xl font-black italic tracking-tighter ${finalScore >= 9 ? 'text-green-600' : finalScore >= 6 ? 'text-orange-500' : 'text-red-600'}`;
             document.getElementById('visual-compare').innerHTML = visualHTML;
 
             const cBox = document.getElementById('comment-box');
-            cBox.textContent = finalScore === 10 ? "🌟 非常清晰！" : hasMajorError ? "❌ 請再試一次" : "💡 有點小瑕疵";
-            cBox.className = `text-[10px] font-bold py-1 px-3 rounded-full ${finalScore >= 9 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`;
+            if (finalScore === 10) { cBox.textContent = "🌟 Perfect! 發音非常清晰"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-green-100 text-green-700 shadow-sm"; }
+            else if (semanticInversion) { cBox.textContent = "⚠️ 嚴重失誤：漏唸或多唸否定詞"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-red-100 text-red-700 shadow-sm border border-red-200"; }
+            else if (hasMajorError) { cBox.textContent = "❌ 單字唸錯或漏唸，請再試一次"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-orange-100 text-orange-700 shadow-sm"; }
+            else { cBox.textContent = "💡 發音精準度待加強（小瑕疵）"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-blue-100 text-blue-700 shadow-sm"; }
+            
             document.getElementById('feedback-panel').classList.remove('hidden');
         }
     </script>
