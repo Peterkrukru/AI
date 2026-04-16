@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英文句子學習卡 App (SRS)</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // 修正 Chrome PDF Worker 載入路徑
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        .transition-transform { transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); }
+        .copyright-tag { position: fixed; bottom: 10px; right: 10px; font-size: 12px; color: #9ca3af; font-weight: bold; z-index: 100; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans flex flex-col relative">
+
+    <div class="copyright-tag">@Peter Huang 2026/4/16</div>
+
+    <header class="bg-indigo-600 text-white p-4 shadow-md text-center">
+        <h1 class="text-2xl font-bold"><i class="fas fa-layer-group mr-2"></i>英文句子學習卡</h1>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-4 relative w-full max-w-4xl mx-auto">
+        
+        <!-- 首頁：匯入 PDF 介面 -->
+        <div id="upload-screen" class="bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
+            <div class="mb-6 text-indigo-500">
+                <i class="fas fa-file-pdf text-6xl"></i>
+            </div>
+            <h2 class="text-xl font-semibold mb-2">匯入 PDF 建立學習卡</h2>
+            <p class="text-gray-500 mb-6 text-sm">請上傳包含英文句子的 PDF 檔案，系統將自動擷取並翻譯成繁體中文。</p>
+            
+            <!-- API 金鑰輸入框 -->
+            <div class="mb-6 text-left">
+                <label for="api-key-input" class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Gemini API Key</label>
+                <div class="relative">
+                    <input type="password" id="api-key-input" placeholder="在此貼上您的 API 金鑰" 
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-all">
+                    <i class="fas fa-key absolute right-3 top-3 text-gray-300"></i>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-1">金鑰僅儲存於您的瀏覽器中。</p>
+            </div>
+
+            <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 inline-block w-full text-center shadow-md">
+                <i class="fas fa-upload mr-2"></i> 選擇 PDF 檔案
+                <input type="file" id="pdf-upload" accept="application/pdf" class="hidden" onchange="handleFileUpload(event)">
+            </label>
+        </div>
+
+        <!-- 載入中介面 -->
+        <div id="loading-screen" class="hidden flex-col items-center justify-center space-y-4">
+            <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-600"></i>
+            <p id="loading-text" class="text-lg font-medium text-gray-600">正在處理中...</p>
+        </div>
+
+        <!-- 學習卡片介面 -->
+        <div id="flashcard-screen" class="hidden w-full max-w-2xl flex flex-col items-center">
+            
+            <div class="w-full mb-4">
+                <div class="flex items-center justify-between text-[11px] text-gray-500 mb-2 font-bold tracking-tight bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <button onclick="toggleInfoModal()" class="flex items-center gap-1 hover:text-indigo-600 transition-colors">
+                            <i class="fas fa-info-circle text-sm"></i> 說明
+                        </button>
+                        <button onclick="clearProgressAndReload()" class="flex items-center gap-1 hover:text-indigo-600 transition-colors border-l pl-4 border-gray-200">
+                            <i class="fas fa-file-upload text-sm"></i> 上傳PDF
+                        </button>
+                        <div id="stats-display" class="flex gap-3 border-l pl-4 border-gray-200">
+                            <span class="text-red-500">重來: <span id="stat-again">0</span></span>
+                            <span class="text-orange-500">隨機: <span id="stat-random">0</span></span>
+                            <span class="text-blue-500">複習: <span id="stat-review">0</span></span>
+                            <span class="text-green-500">通過: <span id="stat-pass">0</span></span>
+                        </div>
+                    </div>
+                    <div><span id="progress-text" class="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-mono">剩餘: 0 / 0</span></div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1">
+                    <div id="progress-bar" class="bg-indigo-600 h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="w-full h-[480px] perspective-1000 cursor-pointer" onclick="flipCard()">
+                <div id="card-inner" class="relative w-full h-full text-center transition-transform transform-style-3d shadow-xl rounded-2xl">
+                    
+                    <!-- 卡片正面 -->
+                    <div class="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-100 rounded-2xl flex items-center justify-center p-6">
+                        <div class="flex items-start justify-center w-full">
+                            <button onclick="readCurrentSentence(event)" class="text-indigo-400 hover:text-indigo-700 text-2xl mr-3 mt-1 focus:outline-none">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            <h2 id="front-text" class="text-2xl md:text-3xl font-bold text-gray-800 leading-tight text-left"></h2>
+                        </div>
+                        <div class="absolute bottom-4 text-gray-300 text-[10px] font-bold uppercase tracking-widest">空白鍵翻面</div>
+                    </div>
+
+                    <!-- 卡片背面 -->
+                    <div class="absolute w-full h-full backface-hidden bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex flex-col p-6 rotate-y-180 overflow-hidden text-left">
+                        <div class="flex flex-col h-full">
+                            <div class="flex items-start w-full mb-2">
+                                <button onclick="readCurrentSentence(event)" class="text-indigo-500 hover:text-indigo-700 text-xl mr-3 mt-1 shrink-0 focus:outline-none">
+                                    <i class="fas fa-volume-up"></i>
+                                </button>
+                                <div class="flex items-start flex-wrap flex-grow">
+                                    <p id="back-en-text" class="text-lg font-semibold text-gray-700 leading-snug"></p>
+                                    <button id="mic-btn" onclick="toggleRecording(event)" class="text-green-500 hover:text-green-600 text-3xl ml-4 mt-0 shrink-0 transition-all active:scale-90 focus:outline-none">
+                                        <i class="fas fa-microphone"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <hr class="border-indigo-100 mb-2">
+                            <p id="back-zh-text" class="text-base text-gray-600 leading-tight mb-3"></p>
+                            
+                            <!-- 評分面板 -->
+                            <div id="feedback-panel" class="hidden flex flex-col bg-white/90 backdrop-blur-sm p-4 rounded-xl border border-white shadow-lg mb-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="bg-indigo-100 text-indigo-600 text-[10px] font-black px-2 py-0.5 rounded uppercase">語音辨識</span>
+                                    <div class="flex items-center gap-1">
+                                        <span id="score-display" class="text-3xl font-black italic tracking-tighter"></span>
+                                        <span class="text-gray-400 text-xs font-bold">/ 10</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="visual-compare" class="text-base flex flex-wrap gap-x-1 gap-y-1.5 leading-tight font-bold font-mono bg-white p-3 rounded-lg border border-gray-100 min-h-[50px] mb-3"></div>
+                                
+                                <div id="comment-box" class="text-sm font-bold flex items-center justify-center gap-2 py-2 px-4 rounded-full shadow-sm"></div>
+                            </div>
+
+                            <div class="mt-auto grid grid-cols-4 gap-2">
+                                <button onclick="srsAction('again', event)" class="bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">重來</button>
+                                <button onclick="srsAction('random', event)" class="bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">隨機</button>
+                                <button onclick="srsAction('review', event)" class="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">複習</button>
+                                <button onclick="srsAction('pass', event)" class="bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-sm shadow-md transition-colors">通過</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 結算畫面 -->
+        <div id="finish-screen" class="hidden bg-white p-10 rounded-2xl shadow-lg text-center w-full max-w-md">
+            <div class="mb-6 text-green-500"><i class="fas fa-check-circle text-6xl"></i></div>
+            <h2 class="text-2xl font-bold mb-2">完成練習！</h2>
+            <div id="final-stats" class="text-left bg-gray-50 p-4 rounded-xl mb-6 space-y-2"></div>
+            <button onclick="restartSession()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg w-full">重新開始</button>
+        </div>
+
+        <!-- 說明彈窗 -->
+        <div id="info-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onclick="toggleInfoModal()">
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onclick="event.stopPropagation()">
+                <h3 class="text-lg font-bold mb-4 border-b pb-2 flex items-center gap-2"><i class="fas fa-keyboard text-indigo-600"></i> 操作與快速鍵</h3>
+                <ul class="space-y-4 text-sm">
+                    <li><span class="bg-gray-100 px-2 py-1 rounded font-mono font-bold mr-2 text-indigo-600">Space</span> 翻轉卡片</li>
+                    <li class="flex items-start gap-3"><span class="bg-red-100 text-red-600 px-2 py-1 rounded font-mono font-bold">1</span><div><p class="font-bold">重來 (Again)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-orange-100 text-orange-600 px-2 py-1 rounded font-mono font-bold">2</span><div><p class="font-bold">隨機 (Random)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-blue-100 text-blue-600 px-2 py-1 rounded font-mono font-bold">3</span><div><p class="font-bold">複習 (Review)</p></div></li>
+                    <li class="flex items-start gap-3"><span class="bg-green-100 text-green-600 px-2 py-1 rounded font-mono font-bold">4</span><div><p class="font-bold">通過 (Pass)</p></div></li>
+                </ul>
+                <button onclick="toggleInfoModal()" class="mt-6 w-full py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold">知道了</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let originalCards = [], queue = [], totalInitial = 0, isFlipped = false, stats = { again: 0, random: 0, review: 0, pass: 0 };
+        
+        // 從 LocalStorage 載入金鑰（如果有的話）
+        const API_KEY_STORAGE_KEY = 'gemini_api_key_v1';
+        let apiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || ""; 
+
+        const ui = {
+            upload: document.getElementById('upload-screen'),
+            loading: document.getElementById('loading-screen'),
+            flashcard: document.getElementById('flashcard-screen'),
+            finish: document.getElementById('finish-screen'),
+            infoModal: document.getElementById('info-modal'),
+            loadingText: document.getElementById('loading-text'),
+            apiKeyInput: document.getElementById('api-key-input'),
+            showLoading: (msg) => {
+                [ui.upload, ui.flashcard, ui.finish].forEach(s => s.classList.add('hidden'));
+                ui.loading.classList.remove('hidden'); ui.loading.classList.add('flex');
+                if(msg) ui.loadingText.textContent = msg;
+            },
+            showFlashcards: () => {
+                ui.loading.classList.add('hidden'); ui.loading.classList.remove('flex');
+                ui.flashcard.classList.remove('hidden'); renderCard();
+            },
+            showFinish: () => {
+                ui.flashcard.classList.add('hidden'); ui.finish.classList.remove('hidden');
+                document.getElementById('final-stats').innerHTML = `
+                    <div class="flex justify-between"><span>重來:</span> <b>${stats.again}</b></div>
+                    <div class="flex justify-between"><span>隨機:</span> <b>${stats.random}</b></div>
+                    <div class="flex justify-between"><span>複習:</span> <b>${stats.review}</b></div>
+                    <div class="flex justify-between text-green-600"><span>通過:</span> <b>${stats.pass}</b></div>
+                `;
+                saveProgress();
+            },
+            showError: (msg) => { alert(msg); ui.loading.classList.add('hidden'); ui.loading.classList.remove('flex'); ui.upload.classList.remove('hidden'); }
+        };
+
+        const STORAGE_KEY = 'ai_coach_final_v3';
+        function saveProgress() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ originalCards, queue, totalInitial, stats, timestamp: Date.now() })); }
+        function loadProgress() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+            try {
+                const data = JSON.parse(saved);
+                if (data.originalCards?.length > 0) {
+                    originalCards = data.originalCards; queue = data.queue; totalInitial = data.totalInitial; stats = data.stats || { again: 0, random: 0, review: 0, pass: 0 };
+                    if (queue.length > 0) { ui.showFlashcards(); return true; }
+                    else { ui.showFinish(); return true; }
+                }
+            } catch (e) { localStorage.removeItem(STORAGE_KEY); }
+            return false;
+        }
+
+        window.onload = () => { 
+            // 初始化 API Key 輸入框
+            if (ui.apiKeyInput) ui.apiKeyInput.value = apiKey;
+            if (!loadProgress()) ui.upload.classList.remove('hidden'); 
+        };
+        
+        function toggleInfoModal() { ui.infoModal.classList.toggle('hidden'); }
+        function clearProgressAndReload() { localStorage.removeItem(STORAGE_KEY); location.reload(); }
+
+        async function handleFileUpload(event) {
+            // 每次匯入前先更新並儲存金鑰
+            apiKey = ui.apiKeyInput.value.trim();
+            if (!apiKey) {
+                alert("請先輸入您的 Gemini API 金鑰！");
+                event.target.value = '';
+                return;
+            }
+            localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+
+            const file = event.target.files[0];
+            if (!file || file.type !== "application/pdf") return;
+            ui.showLoading("正在解析 PDF...");
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const sentences = await extractSentencesFromPDF(arrayBuffer);
+                if (!sentences || sentences.length === 0) { ui.showError("找不到可識別的英文句子！"); return; }
+                const target = sentences.slice(0, 30);
+                ui.showLoading("正在翻譯內容...");
+                const translations = await translateSentences(target);
+                originalCards = target.map((en, i) => ({ en, zh: translations[i] || "翻譯失敗" }));
+                startSession(originalCards);
+            } catch (error) { ui.showError("失敗：" + error.message); }
+            event.target.value = '';
+        }
+
+        async function extractSentencesFromPDF(buf) {
+            const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+            let text = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(item => item.str).join(" ") + " ";
+            }
+            return text.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 10 && /[a-zA-Z]/.test(s));
+        }
+
+        async function translateSentences(sentences) {
+            // 使用穩定版本 gemini-1.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: JSON.stringify(sentences) }] }],
+                systemInstruction: { parts: [{ text: "You are a professional translator. Translate the given English sentence array into a Traditional Chinese (zh-TW) string array. Output MUST be a valid JSON array of strings ONLY. No preamble, no markdown formatting." }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            const maxRetries = 5;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const res = await fetch(url, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(payload) 
+                    });
+
+                    if (!res.ok) {
+                        if (i === maxRetries - 1) throw new Error(`HTTP 錯誤: ${res.status}`);
+                        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                        continue;
+                    }
+
+                    const data = await res.json();
+                    if (!data.candidates || data.candidates.length === 0) throw new Error("AI 未能產生成果");
+
+                    let textContent = data.candidates[0].content.parts[0].text;
+                    textContent = textContent.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+                    const parsed = JSON.parse(textContent);
+                    if (Array.isArray(parsed)) return parsed;
+                    throw new Error("回傳內容格式錯誤");
+
+                } catch (e) {
+                    if (i === maxRetries - 1) throw new Error("網路請求失敗，請檢查 API 金鑰或網路。");
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        function startSession(cards) { queue = [...cards]; totalInitial = queue.length; stats = { again: 0, random: 0, review: 0, pass: 0 }; saveProgress(); ui.showFlashcards(); }
+        function restartSession() { startSession(originalCards); }
+        function renderCard() {
+            if (!queue || queue.length === 0) { ui.showFinish(); return; }
+            const cur = queue[0];
+            document.getElementById('front-text').textContent = cur.en;
+            document.getElementById('back-en-text').textContent = cur.en;
+            document.getElementById('back-zh-text').textContent = cur.zh;
+            
+            clearFeedback(); // 每次顯示新卡片時清除舊評分
+
+            document.getElementById('progress-text').textContent = `剩餘: ${queue.length} / ${totalInitial}`;
+            document.getElementById('stat-again').textContent = stats.again;
+            document.getElementById('stat-random').textContent = stats.random;
+            document.getElementById('stat-review').textContent = stats.review;
+            document.getElementById('stat-pass').textContent = stats.pass;
+            document.getElementById('progress-bar').style.width = `${((totalInitial - queue.length) / totalInitial) * 100}%`;
+            isFlipped = false; updateCardFlipStyle(); speak(cur.en);
+        }
+
+        function clearFeedback() {
+            document.getElementById('feedback-panel').classList.add('hidden');
+            document.getElementById('score-display').textContent = "";
+            document.getElementById('visual-compare').innerHTML = "";
+            document.getElementById('comment-box').innerHTML = "";
+        }
+
+        function flipCard() { 
+            isFlipped = !isFlipped; 
+            updateCardFlipStyle();
+            clearFeedback(); // 點擊翻面時清除評分內容
+        }
+
+        function updateCardFlipStyle() { const inner = document.getElementById('card-inner'); if (inner) isFlipped ? inner.classList.add('rotate-y-180') : inner.classList.remove('rotate-y-180'); }
+        function srsAction(type, event) {
+            if (event) event.stopPropagation();
+            if (!queue.length) return;
+            const current = queue.shift(); stats[type]++;
+            if (type === 'again') queue.splice(1, 0, current);
+            else if (type === 'random') queue.splice(Math.floor(queue.length / 2), 0, current);
+            else if (type === 'review') queue.push(current);
+            saveProgress(); renderCard();
+        }
+
+        function speak(text) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = 0.9; window.speechSynthesis.speak(u); }
+        function readCurrentSentence(event) { if(event) event.stopPropagation(); if (queue.length > 0) speak(queue[0].en); }
+
+        document.addEventListener('keydown', (e) => {
+            if (!ui.flashcard.offsetParent) return;
+            if (!ui.infoModal.classList.contains('hidden')) { if(e.key === 'Escape' || e.key === ' ') toggleInfoModal(); return; }
+            if (e.key === ' ') { e.preventDefault(); flipCard(); }
+            else if (isFlipped) {
+                if (e.key === '1') srsAction('again'); else if (e.key === '2') srsAction('random');
+                else if (e.key === '3') srsAction('review'); else if (e.key === '4') srsAction('pass');
+            }
+        });
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null, isRecording = false;
+        if (SpeechRec) {
+            recognition = new SpeechRec(); recognition.lang = 'en-US'; recognition.continuous = false;
+            recognition.onstart = () => { isRecording = true; document.getElementById('mic-btn').classList.add('text-red-500', 'animate-pulse'); };
+            recognition.onresult = (e) => { handleScore(e.results[0][0].transcript); };
+            recognition.onend = () => { isRecording = false; document.getElementById('mic-btn').classList.remove('text-red-500', 'animate-pulse'); };
+        }
+
+        function toggleRecording(event) { if(event) event.stopPropagation(); if(!recognition) return; isRecording ? recognition.stop() : (clearFeedback(), recognition.start()); }
+
+        function getStringDistance(a, b) {
+            const m = Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+            for(let i=0;i<=a.length;i++) m[i][0]=i; for(let j=0;j<=b.length;j++) m[0][j]=j;
+            for(let i=1;i<=a.length;i++){
+                for(let j=1;j<=b.length;j++){
+                    const c = a[i-1]===b[j-1]?0:1;
+                    m[i][j]=Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+c);
+                }
+            }
+            return m[a.length][b.length];
+        }
+
+        function handleScore(transcript) {
+            if (!queue.length) return;
+            const clean = (s) => s.toLowerCase().replace(/[^\w\s]/g,"").split(/\s+/).filter(x => x.length > 0);
+            const originalWordsRaw = queue[0].en.replace(/[^\w\s]/g,"").split(/\s+/).filter(x => x.length > 0);
+            const originalWordsLower = originalWordsRaw.map(w => w.toLowerCase());
+            const userWords = clean(transcript);
+            const negativeWords = ['not', 'no', 'dont', 'doesnt', 'didnt', 'cant', 'cannot', 'wont', 'shouldnt', 'wouldnt', 'couldnt', 'isnt', 'arent', 'werent', 'wasnt', 'never'];
+            
+            let totalDeduction = 0, hasMajorError = false, hasMinorError = false;
+
+            const visualHTML = originalWordsRaw.map((word, idx) => {
+                const wordLower = word.toLowerCase();
+                const userWord = userWords[idx] || "";
+                if (wordLower === userWord) return `<span class="text-green-600">${word}</span>`;
+                else {
+                    const dist = getStringDistance(wordLower, userWord);
+                    const ratio = dist / Math.max(wordLower.length, 1);
+                    if (userWord && ratio <= 0.3) { totalDeduction += 0.5; hasMinorError = true; }
+                    else { totalDeduction += 1; hasMajorError = true; }
+                    return `<span class="text-red-500 underline decoration-dotted decoration-2 underline-offset-4">${word}</span>`;
+                }
+            }).join(' ');
+
+            const originalNegSet = new Set(originalWordsLower.filter(w => negativeWords.includes(w)));
+            const userNegSet = new Set(userWords.filter(w => negativeWords.includes(w)));
+            const semanticInversion = [...originalNegSet].some(w => !userNegSet.has(w)) || userWords.filter(w => negativeWords.includes(w)).some(w => !originalNegSet.has(w));
+
+            let scoreCalc = 10 - (totalDeduction / Math.max(originalWordsRaw.length, 1)) * 10;
+            if (semanticInversion) scoreCalc -= 3.5;
+            const finalScore = Math.max(0, Math.round(scoreCalc));
+
+            const sDisplay = document.getElementById('score-display');
+            sDisplay.textContent = finalScore;
+            sDisplay.className = `text-3xl font-black italic tracking-tighter ${finalScore >= 9 ? 'text-green-600' : finalScore >= 6 ? 'text-orange-500' : 'text-red-600'}`;
+            document.getElementById('visual-compare').innerHTML = visualHTML;
+
+            const cBox = document.getElementById('comment-box');
+            if (finalScore === 10) { cBox.textContent = "🌟 Perfect! 發音非常清晰"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-green-100 text-green-700 shadow-sm"; }
+            else if (semanticInversion) { cBox.textContent = "⚠️ 嚴重失誤：漏唸或多唸否定詞"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-red-100 text-red-700 shadow-sm border border-red-200"; }
+            else if (hasMajorError) { cBox.textContent = "❌ 單字唸錯或漏唸，請再試一次"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-orange-100 text-orange-700 shadow-sm"; }
+            else { cBox.textContent = "💡 發音精準度待加強（小瑕疵）"; cBox.className = "text-sm font-bold flex items-center justify-center py-2 px-4 rounded-full bg-blue-100 text-blue-700 shadow-sm"; }
+            
+            document.getElementById('feedback-panel').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
